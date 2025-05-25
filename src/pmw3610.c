@@ -615,7 +615,6 @@ static int pmw3610_report_data(const struct device *dev) {
         return -EBUSY;
     }
 
-    // Only allow arrow keys, ignore all other input modes
     int err = motion_burst_read(dev, buf, sizeof(buf));
     if (err) {
         return err;
@@ -651,8 +650,11 @@ static int pmw3610_report_data(const struct device *dev) {
         y = -y;
     }
 
-    // Only send arrow key presses, ignore all other reporting
-    static const int16_t threshold = 10; // Adjust for sensitivity
+    // Debug: print x and y values
+    LOG_INF("pmw3610: x=%d y=%d", x, y);
+
+    // Lower threshold for testing
+    static const int16_t threshold = 1;
     if (x != 0 || y != 0) {
         if (abs(x) > abs(y) && abs(x) > threshold) {
             if (x > 0) {
