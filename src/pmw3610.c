@@ -615,65 +615,19 @@ static int pmw3610_report_data(const struct device *dev) {
         return -EBUSY;
     }
 
-    int32_t dividor;
-    enum pixart_input_mode input_mode = get_input_mode_for_current_layer(dev);
-    bool input_mode_changed = data->curr_mode != input_mode;
-    switch (input_mode) {
-    case MOVE:
-        LOG_DBG("pmw3610: input_mode = MOVE");
-        set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
-        dividor = CONFIG_PMW3610_CPI_DIVIDOR;
-        break;
-    case SCROLL:
-        LOG_DBG("pmw3610: input_mode = SCROLL");
-        set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
-        if (input_mode_changed) {
-            data->scroll_delta_x = 0;
-            data->scroll_delta_y = 0;
-        }
-        dividor = 1; // this should be handled with the ticks rather than dividors
-        break;
-    case SNIPE:
-        LOG_DBG("pmw3610: input_mode = SNIPE");
-        set_cpi_if_needed(dev, CONFIG_PMW3610_SNIPE_CPI);
-        dividor = CONFIG_PMW3610_SNIPE_CPI_DIVIDOR;
-        break;
-    case BALL_ACTION:
-        LOG_DBG("pmw3610: input_mode = BALL_ACTION");
-        set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
-        if (input_mode_changed) {
-            data->ball_action_delta_x = 0;
-            data->ball_action_delta_y = 0;
-        }
-        dividor = 1;
-        break;
-    default:
-        return -ENOTSUP;
-    }
-
-    data->curr_mode = input_mode;
-
-    int16_t x = 0;
-    int16_t y = 0;
-
-#if AUTOMOUSE_LAYER > 0
-    if (input_mode == MOVE &&
-        (automouse_triggered || zmk_keymap_highest_layer_active() != AUTOMOUSE_LAYER) &&
-        (abs(x) + abs(y) > CONFIG_PMW3610_MOVEMENT_THRESHOLD)
-    ) {
-        activate_automouse_layer();
-    }
-#endif
-
+    // Only allow arrow keys, ignore all other input modes
     int err = motion_burst_read(dev, buf, sizeof(buf));
     if (err) {
         return err;
     }
 
+    int16_t x = 0;
+    int16_t y = 0;
+
     int16_t raw_x =
-        TOINT16((buf[PMW3610_X_L_POS] + ((buf[PMW3610_XY_H_POS] & 0xF0) << 4)), 12) / dividor;
+        TOINT16((buf[PMW3610_X_L_POS] + ((buf[PMW3610_XY_H_POS] & 0xF0) << 4)), 12);
     int16_t raw_y =
-        TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12) / dividor;
+        TOINT16((buf[PMW3610_Y_L_POS] + ((buf[PMW3610_XY_H_POS] & 0x0F) << 8)), 12);
 
     if (IS_ENABLED(CONFIG_PMW3610_ORIENTATION_0)) {
         x = -raw_x;
@@ -697,90 +651,25 @@ static int pmw3610_report_data(const struct device *dev) {
         y = -y;
     }
 
-#ifdef CONFIG_PMW3610_SMART_ALGORITHM
-    int16_t shutter =
-        ((int16_t)(buf[PMW3610_SHUTTER_H_POS] & 0x01) << 8) + buf[PMW3610_SHUTTER_L_POS];
-    if (data->sw_smart_flag && shutter < 45) {
-        reg_write(dev, 0x32, 0x00);
-
-        data->sw_smart_flag = false;
-    }
-
-    if (!data->sw_smart_flag && shutter > 45) {
-        reg_write(dev, 0x32, 0x80);
-
-        data->sw_smart_flag = true;
-    }
-#endif
-
-#ifdef CONFIG_PMW3610_POLLING_RATE_125_SW
-    int64_t curr_time = k_uptime_get();
-    if (data->last_poll_time == 0 || curr_time - data->last_poll_time > 128) {
-        data->last_poll_time = curr_time;
-        data->last_x = x;
-        data->last_y = y;
-        return 0;
-    } else {
-        x += data->last_x;
-        y += data->last_y;
-        data->last_poll_time = 0;
-        data->last_x = 0;
-        data->last_y = 0;
-    }
-#endif
-
+    // Only send arrow key presses, ignore all other reporting
+    static const int16_t threshold = 10; // Adjust for sensitivity
     if (x != 0 || y != 0) {
-        if (input_mode == MOVE || input_mode == SNIPE) {
-            // Only report mouse movement in MOVE or SNIPE mode
-#if AUTOMOUSE_LAYER > 0
-            // トラックボールの動きの大きさを計算
-            int16_t movement_size = abs(x) + abs(y);
-            if (input_mode == MOVE &&
-                (automouse_triggered || zmk_keymap_highest_layer_active() != AUTOMOUSE_LAYER) &&
-                movement_size > CONFIG_PMW3610_MOVEMENT_THRESHOLD) {
-                activate_automouse_layer();
+        if (abs(x) > abs(y) && abs(x) > threshold) {
+            if (x > 0) {
+                zmk_hid_press(HID_USAGE_KEY_RIGHT);
+                zmk_hid_release(HID_USAGE_KEY_RIGHT);
+            } else {
+                zmk_hid_press(HID_USAGE_KEY_LEFT);
+                zmk_hid_release(HID_USAGE_KEY_LEFT);
             }
-#endif
-            input_report_rel(dev, INPUT_REL_X, x, false, K_FOREVER);
-            input_report_rel(dev, INPUT_REL_Y, y, true, K_FOREVER);
-        } else if (input_mode == SCROLL) {
-            data->scroll_delta_x += x;
-            data->scroll_delta_y += y;
-            if (abs(data->scroll_delta_y) > CONFIG_PMW3610_SCROLL_TICK) {
-                input_report_rel(dev, INPUT_REL_WHEEL,
-                                 data->scroll_delta_y > 0 ? PMW3610_SCROLL_Y_NEGATIVE : PMW3610_SCROLL_Y_POSITIVE,
-                                 true, K_FOREVER);
-                data->scroll_delta_x = 0;
-                data->scroll_delta_y = 0;
-            } else if (abs(data->scroll_delta_x) > CONFIG_PMW3610_SCROLL_TICK) {
-                input_report_rel(dev, INPUT_REL_HWHEEL,
-                                 data->scroll_delta_x > 0 ? PMW3610_SCROLL_X_NEGATIVE : PMW3610_SCROLL_X_POSITIVE,
-                                 true, K_FOREVER);
-                data->scroll_delta_x = 0;
-                data->scroll_delta_y = 0;
+        } else if (abs(y) > threshold) {
+            if (y > 0) {
+                zmk_hid_press(HID_USAGE_KEY_DOWN);
+                zmk_hid_release(HID_USAGE_KEY_DOWN);
+            } else {
+                zmk_hid_press(HID_USAGE_KEY_UP);
+                zmk_hid_release(HID_USAGE_KEY_UP);
             }
-        } else if (input_mode == BALL_ACTION) {
-            // No mouse movement should be reported here!
-            // Only send arrow key presses
-            static const int16_t threshold = 10; // Adjust for sensitivity
-            if (abs(x) > abs(y) && abs(x) > threshold) {
-                if (x > 0) {
-                    zmk_hid_press(HID_USAGE_KEY_RIGHT);
-                    zmk_hid_release(HID_USAGE_KEY_RIGHT);
-                } else {
-                    zmk_hid_press(HID_USAGE_KEY_LEFT);
-                    zmk_hid_release(HID_USAGE_KEY_LEFT);
-                }
-            } else if (abs(y) > threshold) {
-                if (y > 0) {
-                    zmk_hid_press(HID_USAGE_KEY_DOWN);
-                    zmk_hid_release(HID_USAGE_KEY_DOWN);
-                } else {
-                    zmk_hid_press(HID_USAGE_KEY_UP);
-                    zmk_hid_release(HID_USAGE_KEY_UP);
-                }
-            }
-            // No input_report_rel here!
         }
     }
 
