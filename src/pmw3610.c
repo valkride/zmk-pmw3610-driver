@@ -620,10 +620,12 @@ static int pmw3610_report_data(const struct device *dev) {
     bool input_mode_changed = data->curr_mode != input_mode;
     switch (input_mode) {
     case MOVE:
+        LOG_DBG("pmw3610: input_mode = MOVE");
         set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
         dividor = CONFIG_PMW3610_CPI_DIVIDOR;
         break;
     case SCROLL:
+        LOG_DBG("pmw3610: input_mode = SCROLL");
         set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
         if (input_mode_changed) {
             data->scroll_delta_x = 0;
@@ -632,10 +634,12 @@ static int pmw3610_report_data(const struct device *dev) {
         dividor = 1; // this should be handled with the ticks rather than dividors
         break;
     case SNIPE:
+        LOG_DBG("pmw3610: input_mode = SNIPE");
         set_cpi_if_needed(dev, CONFIG_PMW3610_SNIPE_CPI);
         dividor = CONFIG_PMW3610_SNIPE_CPI_DIVIDOR;
         break;
     case BALL_ACTION:
+        LOG_DBG("pmw3610: input_mode = BALL_ACTION");
         set_cpi_if_needed(dev, CONFIG_PMW3610_CPI);
         if (input_mode_changed) {
             data->ball_action_delta_x = 0;
@@ -727,6 +731,7 @@ static int pmw3610_report_data(const struct device *dev) {
 
     if (x != 0 || y != 0) {
         if (input_mode == MOVE || input_mode == SNIPE) {
+            // Only report mouse movement in MOVE or SNIPE mode
 #if AUTOMOUSE_LAYER > 0
             // トラックボールの動きの大きさを計算
             int16_t movement_size = abs(x) + abs(y);
@@ -755,7 +760,8 @@ static int pmw3610_report_data(const struct device *dev) {
                 data->scroll_delta_y = 0;
             }
         } else if (input_mode == BALL_ACTION) {
-            // Hardcoded arrow key output for BALL_ACTION mode
+            // No mouse movement should be reported here!
+            // Only send arrow key presses
             static const int16_t threshold = 10; // Adjust for sensitivity
             if (abs(x) > abs(y) && abs(x) > threshold) {
                 if (x > 0) {
@@ -774,7 +780,7 @@ static int pmw3610_report_data(const struct device *dev) {
                     zmk_hid_release(HID_USAGE_KEY_UP);
                 }
             }
-            // No accumulation or queueing, just direct key output
+            // No input_report_rel here!
         }
     }
 
