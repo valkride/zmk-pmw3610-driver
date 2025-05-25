@@ -25,7 +25,6 @@
 #include <zmk/events/layer_state_changed.h>
 #include "pmw3610.h"
 #include <zmk/hid.h> // Add this for HID keycodes
-#include <zmk/hid_report.h> // Add this for HID report functions
 
 // Define HID keycodes for arrow keys if not already defined
 #ifndef HID_USAGE_KEY_UP
