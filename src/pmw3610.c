@@ -24,6 +24,16 @@
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include "pmw3610.h"
+#include <zmk/hid.h> // Add this for HID keycodes
+#include <zmk/hid_report.h> // Add this for HID report functions
+
+// Define HID keycodes for arrow keys if not already defined
+#ifndef HID_USAGE_KEY_UP
+#define HID_USAGE_KEY_UP    0x52
+#define HID_USAGE_KEY_DOWN  0x51
+#define HID_USAGE_KEY_LEFT  0x50
+#define HID_USAGE_KEY_RIGHT 0x4F
+#endif
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pmw3610, CONFIG_INPUT_LOG_LEVEL);
@@ -746,41 +756,26 @@ static int pmw3610_report_data(const struct device *dev) {
                 data->scroll_delta_y = 0;
             }
         } else if (input_mode == BALL_ACTION) {
-            data->ball_action_delta_x += x;
-            data->ball_action_delta_y += y;
-
-            const struct pixart_config *config = dev->config;
-
-            if(ball_action_idx != -1) {
-                const struct ball_action_cfg action_cfg = *config->ball_actions[ball_action_idx];
-
-                LOG_DBG("invoking ball action [%d], layer=%d", ball_action_idx, zmk_keymap_highest_layer_active());
-
-                struct zmk_behavior_binding_event event = {
-                    .position = INT32_MAX,
-                    .timestamp = k_uptime_get(),
-#if IS_ENABLED(CONFIG_ZMK_SPLIT)
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-#endif
-
-                };
-
-                // determine which binding to invoke
-                int idx = -1;
-                if(abs(data->ball_action_delta_x) > action_cfg.tick) {
-                    idx = data->ball_action_delta_x > 0 ? 0 : 1;
-                } else if(abs(data->ball_action_delta_y) > action_cfg.tick) {
-                    idx = data->ball_action_delta_y > 0 ? 3 : 2;
+            // Hardcoded arrow key output for BALL_ACTION mode
+            static const int16_t threshold = 10; // Adjust for sensitivity
+            if (abs(x) > abs(y) && abs(x) > threshold) {
+                if (x > 0) {
+                    zmk_hid_press(HID_USAGE_KEY_RIGHT);
+                    zmk_hid_release(HID_USAGE_KEY_RIGHT);
+                } else {
+                    zmk_hid_press(HID_USAGE_KEY_LEFT);
+                    zmk_hid_release(HID_USAGE_KEY_LEFT);
                 }
-
-                if(idx != -1) {
-                    zmk_behavior_queue_add(&event, action_cfg.bindings[idx], true, action_cfg.tap_ms);
-                    zmk_behavior_queue_add(&event, action_cfg.bindings[idx], false, action_cfg.wait_ms);
-
-                    data->ball_action_delta_x = 0;
-                    data->ball_action_delta_y = 0;
+            } else if (abs(y) > threshold) {
+                if (y > 0) {
+                    zmk_hid_press(HID_USAGE_KEY_DOWN);
+                    zmk_hid_release(HID_USAGE_KEY_DOWN);
+                } else {
+                    zmk_hid_press(HID_USAGE_KEY_UP);
+                    zmk_hid_release(HID_USAGE_KEY_UP);
                 }
             }
+            // No accumulation or queueing, just direct key output
         }
     }
 
