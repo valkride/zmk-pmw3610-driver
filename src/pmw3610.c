@@ -701,31 +701,10 @@ static int pmw3610_report_data(const struct device *dev) {
 
     // --- BEGIN: Configurable Keybind Emulation ---
     #define PMW3610_KEY_THRESHOLD 5
+    // Instead of sending the configured key, always send F13 (0x68) for any movement in BALL_ACTION mode
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
-        struct ball_action_cfg *cfg = ((struct pixart_config *)dev->config)->ball_actions[ball_action_idx];
-        // Convention: bindings[0]=right, [1]=left, [2]=up, [3]=down (document this in overlay)
-        // Each binding is an integer HID keycode (e.g., 0x4F for Right Arrow)
-        int64_t now = k_uptime_get();
-        LOG_INF("BALL_ACTION: x=%d y=%d", x, y);
-        if (x > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 0) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[0]);
-            LOG_INF("Emulating key: bindings[0]=0x%02X (usage=0x%08X)", cfg->bindings[0], usage);
-            zmk_hid_press(usage);
-            zmk_hid_release(usage);
-        } else if (x < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 1) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[1]);
-            LOG_INF("Emulating key: bindings[1]=0x%02X (usage=0x%08X)", cfg->bindings[1], usage);
-            zmk_hid_press(usage);
-            zmk_hid_release(usage);
-        }
-        if (y > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 2) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[2]);
-            LOG_INF("Emulating key: bindings[2]=0x%02X (usage=0x%08X)", cfg->bindings[2], usage);
-            zmk_hid_press(usage);
-            zmk_hid_release(usage);
-        } else if (y < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 3) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[3]);
-            LOG_INF("Emulating key: bindings[3]=0x%02X (usage=0x%08X)", cfg->bindings[3], usage);
+        if ((x > PMW3610_KEY_THRESHOLD) || (x < -PMW3610_KEY_THRESHOLD) || (y > PMW3610_KEY_THRESHOLD) || (y < -PMW3610_KEY_THRESHOLD)) {
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, 0x68); // F13
             zmk_hid_press(usage);
             zmk_hid_release(usage);
         }
