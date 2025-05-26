@@ -710,37 +710,57 @@ static int pmw3610_report_data(const struct device *dev) {
         uint32_t now = k_uptime_get_32();
         int key = -1;
         const uint32_t COOLDOWN_MS = 200;
-        // Hysteresis: use higher threshold for press, lower for release
-        // Additional deadzone: if both axes are below release threshold, always release
+        // Directly trigger arrow key HID usage codes
+        // 0x52 = UP, 0x51 = DOWN, 0x50 = LEFT, 0x4F = RIGHT (see HID Usage Tables)
+        uint16_t arrow_hid = 0;
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
-            key = -1;
+            arrow_hid = 0;
         } else if (last_key == -1) {
-            // No key held, require higher threshold to press
-            // Only allow new keypress if cooldown has expired
             if (now - last_release_time > COOLDOWN_MS) {
                 if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 45; // UP key position
+                    arrow_hid = HID_USAGE_KEY_UP;
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 46; // DOWN key position
+                    arrow_hid = HID_USAGE_KEY_DOWN;
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 47; // LEFT key position
+                    arrow_hid = HID_USAGE_KEY_LEFT;
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 48; // RIGHT key position
+                    arrow_hid = HID_USAGE_KEY_RIGHT;
                 }
             }
         } else {
-            // Key is held, use lower threshold to release
-            if (last_key == 45 && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
-                key = -1;
-            } else if (last_key == 46 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
-                key = -1;
-            } else if (last_key == 47 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
-                key = -1;
-            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
-                key = -1;
+            if (last_key == HID_USAGE_KEY_UP && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+                arrow_hid = 0;
+            } else if (last_key == HID_USAGE_KEY_DOWN && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+                arrow_hid = 0;
+            } else if (last_key == HID_USAGE_KEY_LEFT && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+                arrow_hid = 0;
+            } else if (last_key == HID_USAGE_KEY_RIGHT && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+                arrow_hid = 0;
             } else {
-                key = last_key;
+                arrow_hid = last_key;
             }
+        }
+
+        // Always release key immediately if no direction is detected
+        if (arrow_hid == 0 && last_key != -1) {
+            zmk_hid_keyboard_key_release(last_key);
+            last_key = -1;
+            last_release_time = now;
+        }
+        // Only send new keypresses every 100ms to avoid spamming
+        if (now - last_sent > 100) {
+            if (last_key != -1 && last_key != arrow_hid && arrow_hid != 0) {
+                // Release previous key if direction changed
+                zmk_hid_keyboard_key_release(last_key);
+                // Press new key
+                zmk_hid_keyboard_key_press(arrow_hid);
+                last_key = arrow_hid;
+            } else if (arrow_hid != 0 && last_key == -1) {
+                // Press new key if none was pressed
+                zmk_hid_keyboard_key_press(arrow_hid);
+                last_key = arrow_hid;
+            }
+            last_sent = now;
         }
 
         // Always release key immediately if no direction is detected
