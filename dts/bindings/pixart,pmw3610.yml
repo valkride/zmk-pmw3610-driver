@@ -27,8 +27,8 @@ child-binding:
       type: array
       required: true
     bindings:
-      description: "Behaviors to be invoked"
-      type: phandle-array
+      description: "Integer HID keycodes for trackball directions. Convention: [right, left, up, down]"
+      type: array
       required: true
     tick:
       description: "Required ticks to trigger a ball action. Higher values require more movement to trigger a ball action. If omitted, CONFIG_PMW3610_BALL_ACTION_TICK will be used."
