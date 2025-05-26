@@ -709,7 +709,10 @@ static int pmw3610_report_data(const struct device *dev) {
         uint32_t now = k_uptime_get_32();
         int key = -1;
         // Hysteresis: use higher threshold for press, lower for release
-        if (last_key == -1) {
+        // Additional deadzone: if both axes are below release threshold, always release
+        if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
+            key = -1;
+        } else if (last_key == -1) {
             // No key held, require higher threshold to press
             if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
                 key = 2; // W
