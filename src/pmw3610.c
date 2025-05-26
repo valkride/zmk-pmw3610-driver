@@ -712,10 +712,10 @@ static int pmw3610_report_data(const struct device *dev) {
                 .position = 99,
                 .state = true,
             };
-            ZMK_EVENT_RAISE(position_state_changed, ev);
+            ZMK_EVENT_RAISE(ev);
             // Release after a short delay
             ev.state = false;
-            ZMK_EVENT_RAISE(position_state_changed, ev);
+            ZMK_EVENT_RAISE(ev);
             last_sent = now;
         }
     }
