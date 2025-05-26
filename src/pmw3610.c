@@ -709,18 +709,6 @@ static int pmw3610_report_data(const struct device *dev) {
         static int last_key = -1;
         uint32_t now = k_uptime_get_32();
         const uint32_t COOLDOWN_MS = 200;
-#ifndef HID_USAGE_KEY_KEYBOARD_UPARROW
-#define HID_USAGE_KEY_KEYBOARD_UPARROW 0x52
-#endif
-#ifndef HID_USAGE_KEY_KEYBOARD_DOWNARROW
-#define HID_USAGE_KEY_KEYBOARD_DOWNARROW 0x51
-#endif
-#ifndef HID_USAGE_KEY_KEYBOARD_LEFTARROW
-#define HID_USAGE_KEY_KEYBOARD_LEFTARROW 0x50
-#endif
-#ifndef HID_USAGE_KEY_KEYBOARD_RIGHTARROW
-#define HID_USAGE_KEY_KEYBOARD_RIGHTARROW 0x4F
-#endif
         uint16_t arrow_hid = 0;
         // Directly trigger arrow key HID usage codes
         // 0x52 = UP, 0x51 = DOWN, 0x50 = LEFT, 0x4F = RIGHT (see HID Usage Tables)
@@ -737,7 +725,6 @@ static int pmw3610_report_data(const struct device *dev) {
 #ifndef HID_USAGE_KEY_KEYBOARD_RIGHTARROW
 #define HID_USAGE_KEY_KEYBOARD_RIGHTARROW 0x4F
 #endif
-        uint16_t arrow_hid = 0;
         // Determine which direction (if any) is dominant
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             arrow_hid = 0;
