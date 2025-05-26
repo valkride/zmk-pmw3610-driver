@@ -719,13 +719,13 @@ static int pmw3610_report_data(const struct device *dev) {
             // Only allow new keypress if cooldown has expired
             if (now - last_release_time > COOLDOWN_MS) {
                 if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 48; // UP (new key position)
+                    key = 48; // UP key position
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 49; // DOWN (new key position)
+                    key = 49; // DOWN key position
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 50; // LEFT (new key position)
+                    key = 50; // LEFT key position
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 51; // RIGHT (new key position)
+                    key = 51; // RIGHT key position
                 }
             }
         } else {
