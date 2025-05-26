@@ -16,8 +16,7 @@
 #include <zephyr/device.h>
 #include <zephyr/sys/dlist.h>
 #include <drivers/behavior.h>
-#include <zmk/keymap.h>
-#include <zmk/behavior.h>
+#include <zmk/keys.h>
 #include <zmk/keys.h>
 #include <zmk/behavior_queue.h>
 #include <zmk/event_manager.h>
@@ -723,24 +722,23 @@ static int pmw3610_report_data(const struct device *dev) {
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         struct ball_action_cfg *cfg = ((struct pixart_config *)dev->config)->ball_actions[ball_action_idx];
         // Convention: bindings[0]=right, [1]=left, [2]=up, [3]=down (document this in overlay)
-        // Each binding is an integer HID keycode (e.g., 0x14 for Q)
-        // We send ZMK_HID_USAGE(HID_USAGE_KEY, keycode)
+        // Each binding is an integer HID keycode (e.g., 0x4F for Right Arrow)
         int64_t now = k_uptime_get();
         if (x > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 0) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[0].param1);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[0]);
             zmk_hid_press(usage);
             zmk_hid_release(usage);
         } else if (x < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 1) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[1].param1);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[1]);
             zmk_hid_press(usage);
             zmk_hid_release(usage);
         }
         if (y > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 2) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[2].param1);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[2]);
             zmk_hid_press(usage);
             zmk_hid_release(usage);
         } else if (y < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 3) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[3].param1);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[3]);
             zmk_hid_press(usage);
             zmk_hid_release(usage);
         }
@@ -849,13 +847,9 @@ static int pmw3610_init(const struct device *dev) {
 }
 
 
-#define TRANSFORMED_BINDINGS(n)                                                                    \
-    { LISTIFY(DT_PROP_LEN(n, bindings), ZMK_KEYMAP_EXTRACT_BINDING, (, ), n) }
 
 #define BALL_ACTIONS_INST(n)                                                                       \
-    static struct zmk_behavior_binding                                                             \
-        ball_action_config_##n##_bindings[DT_PROP_LEN(n, bindings)] = TRANSFORMED_BINDINGS(n);     \
-                                                                                                   \
+    static uint32_t ball_action_config_##n##_bindings[] = DT_PROP(n, bindings);                    \
     static struct ball_action_cfg ball_action_cfg_##n = {                                          \
         .bindings_len = DT_PROP_LEN(n, bindings),                                                  \
         .bindings = ball_action_config_##n##_bindings,                                             \

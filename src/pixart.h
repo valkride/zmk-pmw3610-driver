@@ -55,7 +55,7 @@ struct pixart_data {
 // ball action config data structure
 struct ball_action_cfg {
     size_t bindings_len;
-    struct zmk_behavior_binding *bindings;
+    uint32_t *bindings;
     uint8_t layers[ZMK_KEYMAP_LAYERS_LEN];
     size_t layers_len;
     uint32_t tick;
