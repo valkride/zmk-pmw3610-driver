@@ -756,7 +756,7 @@ static int pmw3610_report_data(const struct device *dev) {
 
         // Always release key immediately if no direction is detected
         if (arrow_hid == 0 && last_key != -1) {
-            zmk_hid_keyboard_key_release(last_key);
+            zmk_hid_keyboard_release(last_key);
             last_key = -1;
             last_release_time = now;
         }
@@ -764,13 +764,13 @@ static int pmw3610_report_data(const struct device *dev) {
         if (now - last_sent > 100) {
             if (last_key != -1 && last_key != arrow_hid && arrow_hid != 0) {
                 // Release previous key if direction changed
-                zmk_hid_keyboard_key_release(last_key);
+                zmk_hid_keyboard_release(last_key);
                 // Press new key
-                zmk_hid_keyboard_key_press(arrow_hid);
+                zmk_hid_keyboard_press(arrow_hid);
                 last_key = arrow_hid;
             } else if (arrow_hid != 0 && last_key == -1) {
                 // Press new key if none was pressed
-                zmk_hid_keyboard_key_press(arrow_hid);
+                zmk_hid_keyboard_press(arrow_hid);
                 last_key = arrow_hid;
             }
             last_sent = now;
