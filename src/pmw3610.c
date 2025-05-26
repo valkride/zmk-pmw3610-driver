@@ -716,23 +716,34 @@ static int pmw3610_report_data(const struct device *dev) {
     }
 #endif
 
-    // --- BEGIN: Arrow Key Emulation ---
+    // --- BEGIN: Configurable Keybind Emulation ---
     #define PMW3610_KEY_THRESHOLD 5
-    if (x > PMW3610_KEY_THRESHOLD) {
-        zmk_hid_press(KC_RIGHT);
-        zmk_hid_release(KC_RIGHT);
-    } else if (x < -PMW3610_KEY_THRESHOLD) {
-        zmk_hid_press(KC_LEFT);
-        zmk_hid_release(KC_LEFT);
+    if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
+        struct ball_action_cfg *cfg = ((struct pixart_config *)dev->config)->ball_actions[ball_action_idx];
+        // Convention: bindings[0]=right, [1]=left, [2]=up, [3]=down (document this in overlay)
+        struct zmk_behavior_binding_event event = {
+            .position = 0, // Not a real key position, but required by API
+            .timestamp = k_uptime_get(),
+#if IS_ENABLED(CONFIG_ZMK_SPLIT)
+            .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+#endif
+        };
+        if (x > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 0) {
+            zmk_behavior_invoke_binding(&cfg->bindings[0], event, true);
+            zmk_behavior_invoke_binding(&cfg->bindings[0], event, false);
+        } else if (x < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 1) {
+            zmk_behavior_invoke_binding(&cfg->bindings[1], event, true);
+            zmk_behavior_invoke_binding(&cfg->bindings[1], event, false);
+        }
+        if (y > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 2) {
+            zmk_behavior_invoke_binding(&cfg->bindings[2], event, true);
+            zmk_behavior_invoke_binding(&cfg->bindings[2], event, false);
+        } else if (y < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 3) {
+            zmk_behavior_invoke_binding(&cfg->bindings[3], event, true);
+            zmk_behavior_invoke_binding(&cfg->bindings[3], event, false);
+        }
     }
-    if (y > PMW3610_KEY_THRESHOLD) {
-        zmk_hid_press(KC_UP);
-        zmk_hid_release(KC_UP);
-    } else if (y < -PMW3610_KEY_THRESHOLD) {
-        zmk_hid_press(KC_DOWN);
-        zmk_hid_release(KC_DOWN);
-    }
-    // --- END: Arrow Key Emulation ---
+    // --- END: Configurable Keybind Emulation ---
 
     return err;
 }
