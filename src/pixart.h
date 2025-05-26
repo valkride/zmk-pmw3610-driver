@@ -6,6 +6,7 @@
  * @brief Common header file for all optical motion sensor by PIXART
  */
 
+#include <zmk/keymap.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/drivers/gpio.h>
