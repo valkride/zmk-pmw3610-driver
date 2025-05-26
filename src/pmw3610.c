@@ -707,19 +707,15 @@ static int pmw3610_report_data(const struct device *dev) {
         uint32_t now = k_uptime_get_32();
         // Only send once every 100ms to avoid spamming
         if (now - last_sent > 100 && ((x > PMW3610_KEY_THRESHOLD) || (x < -PMW3610_KEY_THRESHOLD) || (y > PMW3610_KEY_THRESHOLD) || (y < -PMW3610_KEY_THRESHOLD))) {
-            // Use a known working position (e.g., 0 = ESCAPE) for debugging
-            raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                .position = 0,
-                .state = true,
-                .timestamp = k_uptime_get(),
-            });
-            raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                .position = 0,
-                .state = false,
-                .timestamp = k_uptime_get(),
-            });
+            // Emulate WASD: W=2, A=13, S=14, D=15
+            zmk_keymap_position_state_changed(2, 0, true, k_uptime_get());
+            zmk_keymap_position_state_changed(2, 0, false, k_uptime_get());
+            zmk_keymap_position_state_changed(13, 0, true, k_uptime_get());
+            zmk_keymap_position_state_changed(13, 0, false, k_uptime_get());
+            zmk_keymap_position_state_changed(14, 0, true, k_uptime_get());
+            zmk_keymap_position_state_changed(14, 0, false, k_uptime_get());
+            zmk_keymap_position_state_changed(15, 0, true, k_uptime_get());
+            zmk_keymap_position_state_changed(15, 0, false, k_uptime_get());
             last_sent = now;
         }
     }
