@@ -705,23 +705,28 @@ static int pmw3610_report_data(const struct device *dev) {
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         static uint32_t last_sent = 0;
+        static uint32_t last_release_time = 0;
         static int last_key = -1;
         uint32_t now = k_uptime_get_32();
         int key = -1;
+        const uint32_t COOLDOWN_MS = 200;
         // Hysteresis: use higher threshold for press, lower for release
         // Additional deadzone: if both axes are below release threshold, always release
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             key = -1;
         } else if (last_key == -1) {
             // No key held, require higher threshold to press
-            if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                key = 2; // W
-            } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                key = 14; // S
-            } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                key = 13; // A
-            } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                key = 15; // D
+            // Only allow new keypress if cooldown has expired
+            if (now - last_release_time > COOLDOWN_MS) {
+                if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
+                    key = 2; // W
+                } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
+                    key = 14; // S
+                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
+                    key = 13; // A
+                } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
+                    key = 15; // D
+                }
             }
         } else {
             // Key is held, use lower threshold to release
@@ -747,6 +752,7 @@ static int pmw3610_report_data(const struct device *dev) {
                 .timestamp = k_uptime_get(),
             });
             last_key = -1;
+            last_release_time = now;
         }
         // Only send new keypresses every 100ms to avoid spamming
         if (now - last_sent > 100) {
