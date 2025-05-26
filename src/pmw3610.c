@@ -717,19 +717,26 @@ static int pmw3610_report_data(const struct device *dev) {
             key = 15; // D
         }
 
-        // Only send once every 100ms to avoid spamming
+        // Always release key immediately if no direction is detected
+        if (key == -1 && last_key != -1) {
+            raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                .position = last_key,
+                .state = false,
+                .timestamp = k_uptime_get(),
+            });
+            last_key = -1;
+        }
+        // Only send new keypresses every 100ms to avoid spamming
         if (now - last_sent > 100) {
-            if (last_key != -1 && last_key != key) {
-                // Release previous key if direction changed or stopped
+            if (last_key != -1 && last_key != key && key != -1) {
+                // Release previous key if direction changed
                 raise_zmk_position_state_changed((struct zmk_position_state_changed){
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
                     .position = last_key,
                     .state = false,
                     .timestamp = k_uptime_get(),
                 });
-                last_key = -1;
-            }
-            if (key != -1 && last_key != key) {
                 // Press new key
                 raise_zmk_position_state_changed((struct zmk_position_state_changed){
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
@@ -738,16 +745,15 @@ static int pmw3610_report_data(const struct device *dev) {
                     .timestamp = k_uptime_get(),
                 });
                 last_key = key;
-            }
-            if (key == -1 && last_key != -1) {
-                // Release key if no direction
+            } else if (key != -1 && last_key == -1) {
+                // Press new key if none was pressed
                 raise_zmk_position_state_changed((struct zmk_position_state_changed){
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = last_key,
-                    .state = false,
+                    .position = key,
+                    .state = true,
                     .timestamp = k_uptime_get(),
                 });
-                last_key = -1;
+                last_key = key;
             }
             last_sent = now;
         }
