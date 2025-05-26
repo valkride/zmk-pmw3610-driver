@@ -574,29 +574,10 @@ K_TIMER_DEFINE(automouse_layer_timer, deactivate_automouse_layer, NULL);
 #endif
 
 int ball_action_idx = -1;
+// DEBUG: Force always BALL_ACTION mode and use first ball_action_idx
 static enum pixart_input_mode get_input_mode_for_current_layer(const struct device *dev) {
-    const struct pixart_config *config = dev->config;
-    uint8_t curr_layer = zmk_keymap_highest_layer_active();
-    ball_action_idx = -1;
-    for (size_t i = 0; i < config->scroll_layers_len; i++) {
-        if (curr_layer == config->scroll_layers[i]) {
-            return SCROLL;
-        }
-    }
-    for (size_t i = 0; i < config->snipe_layers_len; i++) {
-        if (curr_layer == config->snipe_layers[i]) {
-            return SNIPE;
-        }
-    }
-    for (size_t i = 0; i < config->ball_actions_len; i++) {
-        for (size_t j = 0; j < config->ball_actions[i]->layers_len; j++) {
-            if (curr_layer == config->ball_actions[i]->layers[j]) {
-                ball_action_idx = i;
-                return BALL_ACTION;
-            }
-        }
-    }
-    return MOVE;
+    ball_action_idx = 0;
+    return BALL_ACTION;
 }
 
 static int pmw3610_report_data(const struct device *dev) {
