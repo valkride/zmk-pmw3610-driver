@@ -700,8 +700,8 @@ static int pmw3610_report_data(const struct device *dev) {
 #endif
 
     // --- BEGIN: Configurable Keybind Emulation ---
-    #define PMW3610_KEY_PRESS_THRESHOLD 15
-    #define PMW3610_KEY_RELEASE_THRESHOLD 8
+    #define PMW3610_KEY_PRESS_THRESHOLD 40
+    #define PMW3610_KEY_RELEASE_THRESHOLD 20
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         static uint32_t last_sent = 0;
