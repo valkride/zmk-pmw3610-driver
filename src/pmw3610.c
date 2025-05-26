@@ -24,6 +24,8 @@
 #include <zmk/events/position_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include "pmw3610.h"
+#include <zmk/hid.h>
+#include <dt-bindings/zmk/hid_usage_pages.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pmw3610, CONFIG_INPUT_LOG_LEVEL);
@@ -718,8 +720,6 @@ static int pmw3610_report_data(const struct device *dev) {
 
     // --- BEGIN: Configurable Keybind Emulation ---
     #define PMW3610_KEY_THRESHOLD 5
-    #include <zmk/hid.h>
-    #include <dt-bindings/zmk/hid_usage_pages.h>
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         struct ball_action_cfg *cfg = ((struct pixart_config *)dev->config)->ball_actions[ball_action_idx];
         // Convention: bindings[0]=right, [1]=left, [2]=up, [3]=down (document this in overlay)
