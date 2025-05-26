@@ -708,8 +708,20 @@ static int pmw3610_report_data(const struct device *dev) {
         static uint32_t last_release_time = 0;
         static int last_key = -1;
         uint32_t now = k_uptime_get_32();
-        int key = -1;
         const uint32_t COOLDOWN_MS = 200;
+#ifndef HID_USAGE_KEY_KEYBOARD_UPARROW
+#define HID_USAGE_KEY_KEYBOARD_UPARROW 0x52
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_DOWNARROW
+#define HID_USAGE_KEY_KEYBOARD_DOWNARROW 0x51
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_LEFTARROW
+#define HID_USAGE_KEY_KEYBOARD_LEFTARROW 0x50
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_RIGHTARROW
+#define HID_USAGE_KEY_KEYBOARD_RIGHTARROW 0x4F
+#endif
+        uint16_t arrow_hid = 0;
         // Directly trigger arrow key HID usage codes
         // 0x52 = UP, 0x51 = DOWN, 0x50 = LEFT, 0x4F = RIGHT (see HID Usage Tables)
         // Use ZMK's HID usage defines for arrow keys if not already defined
@@ -726,96 +738,39 @@ static int pmw3610_report_data(const struct device *dev) {
 #define HID_USAGE_KEY_KEYBOARD_RIGHTARROW 0x4F
 #endif
         uint16_t arrow_hid = 0;
+        // Determine which direction (if any) is dominant
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             arrow_hid = 0;
-        } else if (last_key == -1) {
-            if (now - last_release_time > COOLDOWN_MS) {
-                if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    arrow_hid = HID_USAGE_KEY_KEYBOARD_UPARROW;
-                } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    arrow_hid = HID_USAGE_KEY_KEYBOARD_DOWNARROW;
-                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    arrow_hid = HID_USAGE_KEY_KEYBOARD_LEFTARROW;
-                } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    arrow_hid = HID_USAGE_KEY_KEYBOARD_RIGHTARROW;
-                }
+        } else if (abs(y) >= abs(x)) {
+            if (y > PMW3610_KEY_PRESS_THRESHOLD) {
+                arrow_hid = HID_USAGE_KEY_KEYBOARD_UPARROW;
+            } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
+                arrow_hid = HID_USAGE_KEY_KEYBOARD_DOWNARROW;
+            } else {
+                arrow_hid = 0;
             }
         } else {
-            if (last_key == HID_USAGE_KEY_KEYBOARD_UPARROW && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
-                arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_KEYBOARD_DOWNARROW && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
-                arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_KEYBOARD_LEFTARROW && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
-                arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_KEYBOARD_RIGHTARROW && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
-                arrow_hid = 0;
+            if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
+                arrow_hid = HID_USAGE_KEY_KEYBOARD_LEFTARROW;
+            } else if (x > PMW3610_KEY_PRESS_THRESHOLD) {
+                arrow_hid = HID_USAGE_KEY_KEYBOARD_RIGHTARROW;
             } else {
-                arrow_hid = last_key;
+                arrow_hid = 0;
             }
         }
 
-        // Always release key immediately if no direction is detected
-        if (arrow_hid == 0 && last_key != -1) {
-            zmk_hid_keyboard_release(last_key);
-            last_key = -1;
-            last_release_time = now;
-        }
-        // Only send new keypresses every 100ms to avoid spamming
-        if (now - last_sent > 100) {
-            if (last_key != -1 && last_key != arrow_hid && arrow_hid != 0) {
-                // Release previous key if direction changed
+        // Only one key can be pressed at a time. Always release previous key before pressing new one.
+        if (arrow_hid != last_key) {
+            if (last_key != -1) {
                 zmk_hid_keyboard_release(last_key);
-                // Press new key
+                last_key = -1;
+                last_release_time = now;
+            }
+            if (arrow_hid != 0) {
                 zmk_hid_keyboard_press(arrow_hid);
                 last_key = arrow_hid;
-            } else if (arrow_hid != 0 && last_key == -1) {
-                // Press new key if none was pressed
-                zmk_hid_keyboard_press(arrow_hid);
-                last_key = arrow_hid;
+                last_sent = now;
             }
-            last_sent = now;
-        }
-
-        // Always release key immediately if no direction is detected
-        if (key == -1 && last_key != -1) {
-            raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                .position = last_key,
-                .state = false,
-                .timestamp = k_uptime_get(),
-            });
-            last_key = -1;
-            last_release_time = now;
-        }
-        // Only send new keypresses every 100ms to avoid spamming
-        if (now - last_sent > 100) {
-            if (last_key != -1 && last_key != key && key != -1) {
-                // Release previous key if direction changed
-                raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = last_key,
-                    .state = false,
-                    .timestamp = k_uptime_get(),
-                });
-                // Press new key
-                raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = key,
-                    .state = true,
-                    .timestamp = k_uptime_get(),
-                });
-                last_key = key;
-            } else if (key != -1 && last_key == -1) {
-                // Press new key if none was pressed
-                raise_zmk_position_state_changed((struct zmk_position_state_changed){
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = key,
-                    .state = true,
-                    .timestamp = k_uptime_get(),
-                });
-                last_key = key;
-            }
-            last_sent = now;
         }
     }
     // --- END: Configurable Keybind Emulation ---
