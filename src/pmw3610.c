@@ -712,29 +712,42 @@ static int pmw3610_report_data(const struct device *dev) {
         const uint32_t COOLDOWN_MS = 200;
         // Directly trigger arrow key HID usage codes
         // 0x52 = UP, 0x51 = DOWN, 0x50 = LEFT, 0x4F = RIGHT (see HID Usage Tables)
+        // Use ZMK's HID usage defines for arrow keys if not already defined
+#ifndef HID_USAGE_KEY_KEYBOARD_UPARROW
+#define HID_USAGE_KEY_KEYBOARD_UPARROW 0x52
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_DOWNARROW
+#define HID_USAGE_KEY_KEYBOARD_DOWNARROW 0x51
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_LEFTARROW
+#define HID_USAGE_KEY_KEYBOARD_LEFTARROW 0x50
+#endif
+#ifndef HID_USAGE_KEY_KEYBOARD_RIGHTARROW
+#define HID_USAGE_KEY_KEYBOARD_RIGHTARROW 0x4F
+#endif
         uint16_t arrow_hid = 0;
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             arrow_hid = 0;
         } else if (last_key == -1) {
             if (now - last_release_time > COOLDOWN_MS) {
                 if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    arrow_hid = HID_USAGE_KEY_UP;
+                    arrow_hid = HID_USAGE_KEY_KEYBOARD_UPARROW;
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    arrow_hid = HID_USAGE_KEY_DOWN;
+                    arrow_hid = HID_USAGE_KEY_KEYBOARD_DOWNARROW;
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    arrow_hid = HID_USAGE_KEY_LEFT;
+                    arrow_hid = HID_USAGE_KEY_KEYBOARD_LEFTARROW;
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    arrow_hid = HID_USAGE_KEY_RIGHT;
+                    arrow_hid = HID_USAGE_KEY_KEYBOARD_RIGHTARROW;
                 }
             }
         } else {
-            if (last_key == HID_USAGE_KEY_UP && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+            if (last_key == HID_USAGE_KEY_KEYBOARD_UPARROW && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
                 arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_DOWN && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+            } else if (last_key == HID_USAGE_KEY_KEYBOARD_DOWNARROW && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
                 arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_LEFT && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+            } else if (last_key == HID_USAGE_KEY_KEYBOARD_LEFTARROW && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
                 arrow_hid = 0;
-            } else if (last_key == HID_USAGE_KEY_RIGHT && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+            } else if (last_key == HID_USAGE_KEY_KEYBOARD_RIGHTARROW && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
                 arrow_hid = 0;
             } else {
                 arrow_hid = last_key;
