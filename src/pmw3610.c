@@ -718,29 +718,31 @@ static int pmw3610_report_data(const struct device *dev) {
 
     // --- BEGIN: Configurable Keybind Emulation ---
     #define PMW3610_KEY_THRESHOLD 5
+    #include <zmk/hid.h>
+    #include <dt-bindings/zmk/hid_usage_pages.h>
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         struct ball_action_cfg *cfg = ((struct pixart_config *)dev->config)->ball_actions[ball_action_idx];
         // Convention: bindings[0]=right, [1]=left, [2]=up, [3]=down (document this in overlay)
-        struct zmk_behavior_binding_event event = {
-            .position = 0, // Not a real key position, but required by API
-            .timestamp = k_uptime_get(),
-#if IS_ENABLED(CONFIG_ZMK_SPLIT)
-            .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-#endif
-        };
+        // Each binding is an integer HID keycode (e.g., 0x14 for Q)
+        // We send ZMK_HID_USAGE(HID_USAGE_KEY, keycode)
+        int64_t now = k_uptime_get();
         if (x > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 0) {
-            zmk_behavior_invoke_binding(&cfg->bindings[0], event, true);
-            zmk_behavior_invoke_binding(&cfg->bindings[0], event, false);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[0].param1);
+            zmk_hid_press(usage);
+            zmk_hid_release(usage);
         } else if (x < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 1) {
-            zmk_behavior_invoke_binding(&cfg->bindings[1], event, true);
-            zmk_behavior_invoke_binding(&cfg->bindings[1], event, false);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[1].param1);
+            zmk_hid_press(usage);
+            zmk_hid_release(usage);
         }
         if (y > PMW3610_KEY_THRESHOLD && cfg->bindings_len > 2) {
-            zmk_behavior_invoke_binding(&cfg->bindings[2], event, true);
-            zmk_behavior_invoke_binding(&cfg->bindings[2], event, false);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[2].param1);
+            zmk_hid_press(usage);
+            zmk_hid_release(usage);
         } else if (y < -PMW3610_KEY_THRESHOLD && cfg->bindings_len > 3) {
-            zmk_behavior_invoke_binding(&cfg->bindings[3], event, true);
-            zmk_behavior_invoke_binding(&cfg->bindings[3], event, false);
+            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, cfg->bindings[3].param1);
+            zmk_hid_press(usage);
+            zmk_hid_release(usage);
         }
     }
     // --- END: Configurable Keybind Emulation ---
