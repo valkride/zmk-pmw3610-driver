@@ -704,18 +704,51 @@ static int pmw3610_report_data(const struct device *dev) {
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         static uint32_t last_sent = 0;
+        static int last_key = -1;
         uint32_t now = k_uptime_get_32();
+        int key = -1;
+        if (y > PMW3610_KEY_THRESHOLD && abs(y) >= abs(x)) {
+            key = 2; // W
+        } else if (y < -PMW3610_KEY_THRESHOLD && abs(y) >= abs(x)) {
+            key = 14; // S
+        } else if (x < -PMW3610_KEY_THRESHOLD && abs(x) > abs(y)) {
+            key = 13; // A
+        } else if (x > PMW3610_KEY_THRESHOLD && abs(x) > abs(y)) {
+            key = 15; // D
+        }
+
         // Only send once every 100ms to avoid spamming
-        if (now - last_sent > 100 && ((x > PMW3610_KEY_THRESHOLD) || (x < -PMW3610_KEY_THRESHOLD) || (y > PMW3610_KEY_THRESHOLD) || (y < -PMW3610_KEY_THRESHOLD))) {
-            // Emulate WASD: W=2, A=13, S=14, D=15
-            zmk_keymap_position_state_changed(2, 0, true, k_uptime_get());
-            zmk_keymap_position_state_changed(2, 0, false, k_uptime_get());
-            zmk_keymap_position_state_changed(13, 0, true, k_uptime_get());
-            zmk_keymap_position_state_changed(13, 0, false, k_uptime_get());
-            zmk_keymap_position_state_changed(14, 0, true, k_uptime_get());
-            zmk_keymap_position_state_changed(14, 0, false, k_uptime_get());
-            zmk_keymap_position_state_changed(15, 0, true, k_uptime_get());
-            zmk_keymap_position_state_changed(15, 0, false, k_uptime_get());
+        if (now - last_sent > 100) {
+            if (last_key != -1 && last_key != key) {
+                // Release previous key if direction changed or stopped
+                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = last_key,
+                    .state = false,
+                    .timestamp = k_uptime_get(),
+                });
+                last_key = -1;
+            }
+            if (key != -1 && last_key != key) {
+                // Press new key
+                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = key,
+                    .state = true,
+                    .timestamp = k_uptime_get(),
+                });
+                last_key = key;
+            }
+            if (key == -1 && last_key != -1) {
+                // Release key if no direction
+                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = last_key,
+                    .state = false,
+                    .timestamp = k_uptime_get(),
+                });
+                last_key = -1;
+            }
             last_sent = now;
         }
     }
