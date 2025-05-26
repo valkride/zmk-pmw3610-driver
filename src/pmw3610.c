@@ -1,3 +1,4 @@
+#warning "Custom PMW3610 driver is being built and included!"
 /*
  * Copyright (c) 2022 The ZMK Contributors
  *
