@@ -719,24 +719,24 @@ static int pmw3610_report_data(const struct device *dev) {
             // Only allow new keypress if cooldown has expired
             if (now - last_release_time > COOLDOWN_MS) {
                 if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 48; // UP key position
+                    key = 45; // UP key position
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
-                    key = 49; // DOWN key position
+                    key = 46; // DOWN key position
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 50; // LEFT key position
+                    key = 47; // LEFT key position
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
-                    key = 51; // RIGHT key position
+                    key = 48; // RIGHT key position
                 }
             }
         } else {
             // Key is held, use lower threshold to release
-            if (last_key == 48 && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+            if (last_key == 45 && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
                 key = -1;
-            } else if (last_key == 49 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+            } else if (last_key == 46 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
                 key = -1;
-            } else if (last_key == 50 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+            } else if (last_key == 47 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
                 key = -1;
-            } else if (last_key == 51 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
                 key = -1;
             } else {
                 key = last_key;
