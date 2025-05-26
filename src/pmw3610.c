@@ -701,12 +701,22 @@ static int pmw3610_report_data(const struct device *dev) {
 
     // --- BEGIN: Configurable Keybind Emulation ---
     #define PMW3610_KEY_THRESHOLD 5
-    // Instead of sending the configured key, always send F13 (0x68) for any movement in BALL_ACTION mode
+    /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
-        if ((x > PMW3610_KEY_THRESHOLD) || (x < -PMW3610_KEY_THRESHOLD) || (y > PMW3610_KEY_THRESHOLD) || (y < -PMW3610_KEY_THRESHOLD)) {
-            uint32_t usage = ZMK_HID_USAGE(HID_USAGE_KEY, 0x68); // F13
-            zmk_hid_press(usage);
-            zmk_hid_release(usage);
+        static uint32_t last_sent = 0;
+        uint32_t now = k_uptime_get_32();
+        // Only send once every 100ms to avoid spamming
+        if (now - last_sent > 100 && ((x > PMW3610_KEY_THRESHOLD) || (x < -PMW3610_KEY_THRESHOLD) || (y > PMW3610_KEY_THRESHOLD) || (y < -PMW3610_KEY_THRESHOLD))) {
+            // Use a virtual position (e.g., 99) that is not mapped to any real key
+            struct zmk_position_state_changed ev = {
+                .position = 99,
+                .state = true,
+            };
+            ZMK_EVENT_RAISE(position_state_changed, ev);
+            // Release after a short delay
+            ev.state = false;
+            ZMK_EVENT_RAISE(position_state_changed, ev);
+            last_sent = now;
         }
     }
     // --- END: Configurable Keybind Emulation ---
