@@ -719,31 +719,55 @@ static int pmw3610_report_data(const struct device *dev) {
             key = -1;
         } else if (last_key == -1) {
             if (now - last_release_time > COOLDOWN_MS) {
-                // up movement (Y+) -> UP
-                // down movement (Y-) -> DOWN
-                // right movement (X+) -> RIGHT
-                // left movement (X-) -> LEFT
-                if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = VKEY_UP;
-                } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = VKEY_DOWN;
-                } else if (x > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = VKEY_RIGHT;
-                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = VKEY_LEFT;
+                // Use dominant axis for direction detection
+                if (abs(y) >= abs(x)) {
+                    if (y > PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_UP;
+                    } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_DOWN;
+                    }
+                } else {
+                    if (x > PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_RIGHT;
+                    } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_LEFT;
+                    }
                 }
             }
         } else {
-            if (last_key == VKEY_UP && !(y > PMW3610_KEY_RELEASE_THRESHOLD)) {
-                key = -1;
-            } else if (last_key == VKEY_DOWN && !(y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
-                key = -1;
-            } else if (last_key == VKEY_RIGHT && !(x > PMW3610_KEY_RELEASE_THRESHOLD)) {
-                key = -1;
-            } else if (last_key == VKEY_LEFT && !(x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
-                key = -1;
-            } else {
-                key = last_key;
+            // Release key if movement on its axis is no longer dominant or below release threshold
+            switch (last_key) {
+                case VKEY_UP:
+                    if (!(abs(y) >= abs(x) && y > PMW3610_KEY_RELEASE_THRESHOLD)) {
+                        key = -1;
+                    } else {
+                        key = last_key;
+                    }
+                    break;
+                case VKEY_DOWN:
+                    if (!(abs(y) >= abs(x) && y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+                        key = -1;
+                    } else {
+                        key = last_key;
+                    }
+                    break;
+                case VKEY_RIGHT:
+                    if (!(abs(x) > abs(y) && x > PMW3610_KEY_RELEASE_THRESHOLD)) {
+                        key = -1;
+                    } else {
+                        key = last_key;
+                    }
+                    break;
+                case VKEY_LEFT:
+                    if (!(abs(x) > abs(y) && x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+                        key = -1;
+                    } else {
+                        key = last_key;
+                    }
+                    break;
+                default:
+                    key = -1;
+                    break;
             }
         }
 
