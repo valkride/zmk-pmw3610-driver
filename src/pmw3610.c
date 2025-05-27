@@ -709,7 +709,7 @@ static int pmw3610_report_data(const struct device *dev) {
         uint32_t now = k_uptime_get_32();
         int key = -1;
         const uint32_t COOLDOWN_MS = 200;
-        // Define virtual key positions for clarity
+        // Define virtual key positions
         #define VKEY_UP 45
         #define VKEY_LEFT 46
         #define VKEY_RIGHT 47
