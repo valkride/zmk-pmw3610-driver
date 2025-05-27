@@ -710,10 +710,10 @@ static int pmw3610_report_data(const struct device *dev) {
         int key = -1;
         const uint32_t COOLDOWN_MS = 200;
         // Define virtual key positions
-        #define VKEY_UP 45
+        #define VKEY_UP 48
         #define VKEY_LEFT 46
         #define VKEY_RIGHT 47
-        #define VKEY_DOWN 48
+        #define VKEY_DOWN 45
 
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             key = -1;
