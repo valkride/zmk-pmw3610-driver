@@ -744,11 +744,21 @@ static int pmw3610_report_data(const struct device *dev) {
 
         if (key != last_key) {
             if (last_key != -1) {
-                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(last_key, false));
+                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = last_key,
+                    .state = false,
+                    .timestamp = k_uptime_get()
+                });
                 last_release_time = now;
             }
             if (key != -1) {
-                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(key, true));
+                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = key,
+                    .state = true,
+                    .timestamp = k_uptime_get()
+                });
             }
             last_key = key;
         }
