@@ -715,27 +715,27 @@ static int pmw3610_report_data(const struct device *dev) {
         #define VKEY_RIGHT 47
         #define VKEY_DOWN 45
 
+        // Dominant axis detection for press
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             key = -1;
         } else if (last_key == -1) {
             if (now - last_release_time > COOLDOWN_MS) {
-                // Use dominant axis for direction detection
-                if (abs(y) >= abs(x)) {
-                    if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_UP;
-                    } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_DOWN;
-                    }
-                } else {
+                if (abs(x) > abs(y)) {
                     if (x > PMW3610_KEY_PRESS_THRESHOLD) {
                         key = VKEY_RIGHT;
                     } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
                         key = VKEY_LEFT;
                     }
+                } else {
+                    if (y > PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_UP;
+                    } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
+                        key = VKEY_DOWN;
+                    }
                 }
             }
         } else {
-            // Release key if movement on its axis is no longer dominant or below release threshold
+            // Dominant axis detection for release
             switch (last_key) {
                 case VKEY_UP:
                     if (!(abs(y) >= abs(x) && y > PMW3610_KEY_RELEASE_THRESHOLD)) {
@@ -771,23 +771,26 @@ static int pmw3610_report_data(const struct device *dev) {
             }
         }
 
+        // Only emit events if state changes
         if (key != last_key) {
             if (last_key != -1) {
-                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                struct zmk_position_state_changed evt = {
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
                     .position = last_key,
                     .state = false,
                     .timestamp = k_uptime_get()
-                });
+                };
+                raise_zmk_position_state_changed(evt);
                 last_release_time = now;
             }
             if (key != -1) {
-                raise_zmk_position_state_changed((struct zmk_position_state_changed){
+                struct zmk_position_state_changed evt = {
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
                     .position = key,
                     .state = true,
                     .timestamp = k_uptime_get()
-                });
+                };
+                raise_zmk_position_state_changed(evt);
             }
             last_key = key;
         }
