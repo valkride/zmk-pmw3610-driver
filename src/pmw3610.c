@@ -718,23 +718,23 @@ static int pmw3610_report_data(const struct device *dev) {
                 // right movement (X+) -> RIGHT (47)
                 // left movement (X-) -> LEFT (46)
                 if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 45; // UP (Y+)
+                    key = 46; // UP (Y+)
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 48; // DOWN (Y-)
+                    key = 47; // DOWN (Y-)
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 47; // RIGHT (X+)
+                    key = 48; // RIGHT (X+)
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 46; // LEFT (X-)
+                    key = 49; // LEFT (X-)
                 }
             }
         } else {
-            if (last_key == 45 && !(y > PMW3610_KEY_RELEASE_THRESHOLD)) {
+            if (last_key == 46 && !(y > PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 48 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == 47 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 47 && !(x > PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 46 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == 49 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
             } else {
                 key = last_key;
