@@ -710,10 +710,10 @@ static int pmw3610_report_data(const struct device *dev) {
         int key = -1;
         const uint32_t COOLDOWN_MS = 200;
         // Define virtual key positions
-        #define VKEY_UP 2
-        #define VKEY_LEFT 3
-        #define VKEY_RIGHT 4
-        #define VKEY_DOWN 5
+        #define VKEY_UP 44
+        #define VKEY_LEFT 45
+        #define VKEY_RIGHT 46
+        #define VKEY_DOWN 47
 
         // Dominant axis detection for press
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
