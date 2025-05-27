@@ -713,24 +713,28 @@ static int pmw3610_report_data(const struct device *dev) {
             key = -1;
         } else if (last_key == -1) {
             if (now - last_release_time > COOLDOWN_MS) {
+                // down movement (Y-) -> LEFT (46)
+                // up movement (Y+) -> UP (45)
+                // right movement (X+) -> DOWN (48)
+                // left movement (X-) -> RIGHT (47)
                 if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) > abs(x)) {
                     key = 45; // UP (Y+)
-                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) >= abs(y)) {
-                    key = 46; // LEFT (X-)
-                } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) >= abs(y)) {
-                    key = 47; // RIGHT (X+)
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) > abs(x)) {
-                    key = 48; // DOWN (Y-)
+                    key = 46; // LEFT (Y-)
+                } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) >= abs(y)) {
+                    key = 48; // DOWN (X+)
+                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) >= abs(y)) {
+                    key = 47; // RIGHT (X-)
                 }
             }
         } else {
             if (last_key == 45 && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) > abs(x))) {
                 key = -1;
-            } else if (last_key == 46 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) >= abs(y))) {
+            } else if (last_key == 46 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) > abs(x))) {
                 key = -1;
-            } else if (last_key == 47 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) >= abs(y))) {
+            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) >= abs(y))) {
                 key = -1;
-            } else if (last_key == 48 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) > abs(x))) {
+            } else if (last_key == 47 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) >= abs(y))) {
                 key = -1;
             } else {
                 key = last_key;
