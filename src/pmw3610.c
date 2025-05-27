@@ -704,45 +704,53 @@ static int pmw3610_report_data(const struct device *dev) {
     #define PMW3610_KEY_RELEASE_THRESHOLD 20
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
-        // Bind trackball directions to key positions 45, 46, 47, 48
-        // 45: UP, 46: DOWN, 47: LEFT, 48: RIGHT
-        #define TRACKBALL_POS_UP    45
-        #define TRACKBALL_POS_DOWN  46
-        #define TRACKBALL_POS_LEFT  47
-        #define TRACKBALL_POS_RIGHT 48
-        static int last_pos = -1;
-        int pos = -1;
-        // Determine which direction (if any) is dominant
+        static uint32_t last_release_time = 0;
+        static int last_key = -1;
+        uint32_t now = k_uptime_get_32();
+        int key = -1;
+        const uint32_t COOLDOWN_MS = 200;
+        // Hysteresis: use higher threshold for press, lower for release
+        // Additional deadzone: if both axes are below release threshold, always release
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
-            pos = -1;
-        } else if (abs(y) >= abs(x)) {
-            if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                pos = TRACKBALL_POS_UP;
-            } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                pos = TRACKBALL_POS_DOWN;
-            } else {
-                pos = -1;
+            key = -1;
+        } else if (last_key == -1) {
+            // No key held, require higher threshold to press
+            // Only allow new keypress if cooldown has expired
+            if (now - last_release_time > COOLDOWN_MS) {
+                if (y > PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
+                    key = 45; // UP key position
+                } else if (y < -PMW3610_KEY_PRESS_THRESHOLD && abs(y) >= abs(x)) {
+                    key = 46; // DOWN key position
+                } else if (x < -PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
+                    key = 47; // LEFT key position
+                } else if (x > PMW3610_KEY_PRESS_THRESHOLD && abs(x) > abs(y)) {
+                    key = 48; // RIGHT key position
+                }
             }
         } else {
-            if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
-                pos = TRACKBALL_POS_LEFT;
-            } else if (x > PMW3610_KEY_PRESS_THRESHOLD) {
-                pos = TRACKBALL_POS_RIGHT;
+            // Key is held, use lower threshold to release
+            if (last_key == 45 && !(y > PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+                key = -1;
+            } else if (last_key == 46 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD && abs(y) >= abs(x))) {
+                key = -1;
+            } else if (last_key == 47 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+                key = -1;
+            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD && abs(x) > abs(y))) {
+                key = -1;
             } else {
-                pos = -1;
+                key = last_key;
             }
         }
 
-        // Only one virtual key can be pressed at a time. Always release previous before pressing new.
-        if (pos != last_pos) {
-            if (last_pos != -1) {
-                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(last_pos, false));
-                last_pos = -1;
+        if (key != last_key) {
+            if (last_key != -1) {
+                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(last_key, false));
+                last_release_time = now;
             }
-            if (pos != -1) {
-                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(pos, true));
-                last_pos = pos;
+            if (key != -1) {
+                ZMK_EVENT_RAISE(zmk_position_state_changed_from_encoded(key, true));
             }
+            last_key = key;
         }
     }
     // --- END: Configurable Keybind Emulation ---
