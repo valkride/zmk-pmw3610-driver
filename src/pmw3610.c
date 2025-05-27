@@ -709,32 +709,38 @@ static int pmw3610_report_data(const struct device *dev) {
         uint32_t now = k_uptime_get_32();
         int key = -1;
         const uint32_t COOLDOWN_MS = 200;
+        // Define virtual key positions for clarity
+        #define VKEY_UP 45
+        #define VKEY_LEFT 46
+        #define VKEY_RIGHT 47
+        #define VKEY_DOWN 48
+
         if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
             key = -1;
         } else if (last_key == -1) {
             if (now - last_release_time > COOLDOWN_MS) {
-                // up movement (Y+) -> UP (45)
-                // down movement (Y-) -> DOWN (48)
-                // right movement (X+) -> RIGHT (47)
-                // left movement (X-) -> LEFT (46)
+                // up movement (Y+) -> UP
+                // down movement (Y-) -> DOWN
+                // right movement (X+) -> RIGHT
+                // left movement (X-) -> LEFT
                 if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 46; // UP (Y+)
+                    key = VKEY_UP;
                 } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 47; // DOWN (Y-)
+                    key = VKEY_DOWN;
                 } else if (x > PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 48; // RIGHT (X+)
+                    key = VKEY_RIGHT;
                 } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
-                    key = 49; // LEFT (X-)
+                    key = VKEY_LEFT;
                 }
             }
         } else {
-            if (last_key == 46 && !(y > PMW3610_KEY_RELEASE_THRESHOLD)) {
+            if (last_key == VKEY_UP && !(y > PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 47 && !(y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == VKEY_DOWN && !(y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 48 && !(x > PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == VKEY_RIGHT && !(x > PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
-            } else if (last_key == 49 && !(x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
+            } else if (last_key == VKEY_LEFT && !(x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
                 key = -1;
             } else {
                 key = last_key;
