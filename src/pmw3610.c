@@ -699,103 +699,120 @@ static int pmw3610_report_data(const struct device *dev) {
     }
 #endif
 
-    // --- BEGIN: Configurable Keybind Emulation ---
+    // --- BEGIN: Improved Configurable Keybind Emulation with Coast Protection, Timeout, Smoothing, and Flick Hold ---
     #define PMW3610_KEY_PRESS_THRESHOLD 40
     #define PMW3610_KEY_RELEASE_THRESHOLD 20
+    #define PMW3610_COAST_THRESHOLD 10 // Coast protection: treat as stopped if below this
+    #define PMW3610_COAST_TIMEOUT_MS 100 // Coast timeout: release all keys if coasting for this long
+    #define PMW3610_SMOOTH_WINDOW 3 // Moving average window size
+    #define PMW3610_FLICK_THRESHOLD (3 * PMW3610_KEY_PRESS_THRESHOLD) // Flick detection threshold
+    #define PMW3610_FLICK_HOLD_MS 120 // How long to hold key after a flick (ms)
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
-        static uint32_t last_release_time = 0;
-        static int last_key = -1;
-        uint32_t now = k_uptime_get_32();
-        int key = -1;
-        const uint32_t COOLDOWN_MS = 200;
-        // Define virtual key positions
-        #define VKEY_UP 44
-        #define VKEY_LEFT 45
-        #define VKEY_RIGHT 46
-        #define VKEY_DOWN 47
-
-        // Dominant axis detection for press
-        if (abs(x) <= PMW3610_KEY_RELEASE_THRESHOLD && abs(y) <= PMW3610_KEY_RELEASE_THRESHOLD) {
-            key = -1;
-        } else if (last_key == -1) {
-            if (now - last_release_time > COOLDOWN_MS) {
-                if (abs(x) > abs(y)) {
-                    if (x > PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_RIGHT;
-                    } else if (x < -PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_LEFT;
-                    }
-                } else {
-                    if (y > PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_UP;
-                    } else if (y < -PMW3610_KEY_PRESS_THRESHOLD) {
-                        key = VKEY_DOWN;
-                    }
-                }
+        static bool pressed[4] = {false, false, false, false};
+        int keys[4] = {44, 45, 46, 47}; // UP, LEFT, RIGHT, DOWN
+        bool should_press[4] = {false, false, false, false};
+        // --- Smoothing: moving average filter for x/y ---
+        static int16_t x_hist[PMW3610_SMOOTH_WINDOW] = {0};
+        static int16_t y_hist[PMW3610_SMOOTH_WINDOW] = {0};
+        static int hist_idx = 0;
+        x_hist[hist_idx] = x;
+        y_hist[hist_idx] = y;
+        hist_idx = (hist_idx + 1) % PMW3610_SMOOTH_WINDOW;
+        int32_t x_sum = 0, y_sum = 0;
+        for (int i = 0; i < PMW3610_SMOOTH_WINDOW; i++) {
+            x_sum += x_hist[i];
+            y_sum += y_hist[i];
+        }
+        int16_t x_smooth = x_sum / PMW3610_SMOOTH_WINDOW;
+        int16_t y_smooth = y_sum / PMW3610_SMOOTH_WINDOW;
+        // --- Coast timeout logic ---
+        static int64_t coast_start_time = 0;
+        int64_t now = k_uptime_get();
+        bool in_coast = (x_smooth > -PMW3610_COAST_THRESHOLD && x_smooth < PMW3610_COAST_THRESHOLD &&
+                         y_smooth > -PMW3610_COAST_THRESHOLD && y_smooth < PMW3610_COAST_THRESHOLD);
+        if (in_coast) {
+            if (coast_start_time == 0) {
+                coast_start_time = now;
             }
         } else {
-            // Dominant axis detection for release
-            switch (last_key) {
-                case VKEY_UP:
-                    if (!(abs(y) >= abs(x) && y > PMW3610_KEY_RELEASE_THRESHOLD)) {
-                        key = -1;
-                    } else {
-                        key = last_key;
-                    }
-                    break;
-                case VKEY_DOWN:
-                    if (!(abs(y) >= abs(x) && y < -PMW3610_KEY_RELEASE_THRESHOLD)) {
-                        key = -1;
-                    } else {
-                        key = last_key;
-                    }
-                    break;
-                case VKEY_RIGHT:
-                    if (!(abs(x) > abs(y) && x > PMW3610_KEY_RELEASE_THRESHOLD)) {
-                        key = -1;
-                    } else {
-                        key = last_key;
-                    }
-                    break;
-                case VKEY_LEFT:
-                    if (!(abs(x) > abs(y) && x < -PMW3610_KEY_RELEASE_THRESHOLD)) {
-                        key = -1;
-                    } else {
-                        key = last_key;
-                    }
-                    break;
-                default:
-                    key = -1;
-                    break;
+            coast_start_time = 0;
+        }
+        bool coast_timeout = (coast_start_time > 0 && (now - coast_start_time) > PMW3610_COAST_TIMEOUT_MS);
+        // --- Flick detection and hold logic ---
+        static int64_t flick_hold_until[4] = {0, 0, 0, 0};
+        // Detect flicks and set hold timers
+        if (y_smooth > PMW3610_FLICK_THRESHOLD) {
+            flick_hold_until[0] = now + PMW3610_FLICK_HOLD_MS; // UP
+        }
+        if (y_smooth < -PMW3610_FLICK_THRESHOLD) {
+            flick_hold_until[3] = now + PMW3610_FLICK_HOLD_MS; // DOWN
+        }
+        if (x_smooth < -PMW3610_FLICK_THRESHOLD) {
+            flick_hold_until[1] = now + PMW3610_FLICK_HOLD_MS; // LEFT
+        }
+        if (x_smooth > PMW3610_FLICK_THRESHOLD) {
+            flick_hold_until[2] = now + PMW3610_FLICK_HOLD_MS; // RIGHT
+        }
+        // --- Key emulation logic ---
+        if (in_coast || coast_timeout) {
+            // Release all keys
+            for (int i = 0; i < 4; i++) {
+                should_press[i] = false;
+            }
+        } else {
+            // Determine which directions should be pressed (normal logic)
+            if (y_smooth > PMW3610_KEY_PRESS_THRESHOLD) {
+                should_press[0] = true; // UP
+            }
+            if (y_smooth < -PMW3610_KEY_PRESS_THRESHOLD) {
+                should_press[3] = true; // DOWN
+            }
+            if (x_smooth < -PMW3610_KEY_PRESS_THRESHOLD) {
+                should_press[1] = true; // LEFT
+            }
+            if (x_smooth > PMW3610_KEY_PRESS_THRESHOLD) {
+                should_press[2] = true; // RIGHT
+            }
+            // Release if axis returns to center
+            if (y_smooth < PMW3610_KEY_RELEASE_THRESHOLD && y_smooth > -PMW3610_KEY_RELEASE_THRESHOLD) {
+                should_press[0] = false; // UP
+                should_press[3] = false; // DOWN
+            }
+            if (x_smooth < PMW3610_KEY_RELEASE_THRESHOLD && x_smooth > -PMW3610_KEY_RELEASE_THRESHOLD) {
+                should_press[1] = false; // LEFT
+                should_press[2] = false; // RIGHT
             }
         }
-
-        // Only emit events if state changes
-        if (key != last_key) {
-            if (last_key != -1) {
-                struct zmk_position_state_changed evt = {
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = last_key,
-                    .state = false,
-                    .timestamp = k_uptime_get()
-                };
-                raise_zmk_position_state_changed(evt);
-                last_release_time = now;
+        // Override with flick hold: if flick hold timer is active, force key held
+        for (int i = 0; i < 4; i++) {
+            if (flick_hold_until[i] > now) {
+                should_press[i] = true;
             }
-            if (key != -1) {
+        }
+        for (int i = 0; i < 4; i++) {
+            if (should_press[i] && !pressed[i]) {
                 struct zmk_position_state_changed evt = {
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = key,
+                    .position = keys[i],
                     .state = true,
-                    .timestamp = k_uptime_get()
+                    .timestamp = now
                 };
                 raise_zmk_position_state_changed(evt);
+                pressed[i] = true;
+            } else if (!should_press[i] && pressed[i]) {
+                struct zmk_position_state_changed evt = {
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = keys[i],
+                    .state = false,
+                    .timestamp = now
+                };
+                raise_zmk_position_state_changed(evt);
+                pressed[i] = false;
             }
-            last_key = key;
         }
     }
-    // --- END: Configurable Keybind Emulation ---
+    // --- END: Improved Configurable Keybind Emulation with Coast Protection, Timeout, Smoothing, and Flick Hold ---
 
     return err;
 }
