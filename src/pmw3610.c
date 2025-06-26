@@ -697,40 +697,54 @@ static int pmw3610_report_data(const struct device *dev) {
         data->last_x = 0;
         data->last_y = 0;
     }
-#endif
-
-    // --- BEGIN: Improved Configurable Keybind Emulation with Coast Protection, Timeout, Smoothing, and Flick Hold ---
-    #define PMW3610_KEY_PRESS_THRESHOLD 40
-    #define PMW3610_KEY_RELEASE_THRESHOLD 20
-    #define PMW3610_COAST_THRESHOLD 10 // Coast protection: treat as stopped if below this
-    #define PMW3610_COAST_TIMEOUT_MS 100 // Coast timeout: release all keys if coasting for this long
-    #define PMW3610_SMOOTH_WINDOW 3 // Moving average window size
-    #define PMW3610_FLICK_THRESHOLD (3 * PMW3610_KEY_PRESS_THRESHOLD) // Flick detection threshold
-    #define PMW3610_FLICK_HOLD_MS 120 // How long to hold key after a flick (ms)
+#endif    // --- BEGIN: Enhanced Speed-Responsive Arrow Key Emulation ---
+    #define PMW3610_BASE_THRESHOLD 25       // Base threshold for initial key press
+    #define PMW3610_RELEASE_THRESHOLD 15    // Threshold for key release
+    #define PMW3610_COAST_THRESHOLD 8       // Coast protection: treat as stopped if below this
+    #define PMW3610_COAST_TIMEOUT_MS 80     // Coast timeout: release all keys if coasting for this long
+    #define PMW3610_SMOOTH_WINDOW 4         // Moving average window size for smoother response
+    #define PMW3610_SPEED_TIERS 4           // Number of speed tiers for fluid response
+    
     /* Use ZMK position_state_changed event to simulate a key press at a virtual position. */
     if (input_mode == BALL_ACTION && ball_action_idx >= 0) {
         static bool pressed[4] = {false, false, false, false};
+        static int64_t last_key_time[4] = {0, 0, 0, 0};  // Track timing for speed-responsive repeats
+        static int16_t speed_tier[4] = {0, 0, 0, 0};     // Current speed tier for each direction
+        
         int keys[4] = {44, 45, 46, 47}; // UP, LEFT, RIGHT, DOWN
         bool should_press[4] = {false, false, false, false};
-        // --- Smoothing: moving average filter for x/y ---
+        
+        // --- Enhanced Smoothing: weighted moving average for better responsiveness ---
         static int16_t x_hist[PMW3610_SMOOTH_WINDOW] = {0};
         static int16_t y_hist[PMW3610_SMOOTH_WINDOW] = {0};
         static int hist_idx = 0;
+        static float weight_sum = 0;
+        
         x_hist[hist_idx] = x;
         y_hist[hist_idx] = y;
         hist_idx = (hist_idx + 1) % PMW3610_SMOOTH_WINDOW;
-        int32_t x_sum = 0, y_sum = 0;
+        
+        // Weighted average (recent samples have more weight)
+        float x_weighted = 0, y_weighted = 0;
+        weight_sum = 0;
         for (int i = 0; i < PMW3610_SMOOTH_WINDOW; i++) {
-            x_sum += x_hist[i];
-            y_sum += y_hist[i];
+            int idx = (hist_idx - 1 - i + PMW3610_SMOOTH_WINDOW) % PMW3610_SMOOTH_WINDOW;
+            float weight = 1.0f + (PMW3610_SMOOTH_WINDOW - 1 - i) * 0.3f; // Recent samples weighted more
+            x_weighted += x_hist[idx] * weight;
+            y_weighted += y_hist[idx] * weight;
+            weight_sum += weight;
         }
-        int16_t x_smooth = x_sum / PMW3610_SMOOTH_WINDOW;
-        int16_t y_smooth = y_sum / PMW3610_SMOOTH_WINDOW;
+        int16_t x_smooth = (int16_t)(x_weighted / weight_sum);
+        int16_t y_smooth = (int16_t)(y_weighted / weight_sum);
+        
+        // Calculate overall movement speed for dynamic thresholds
+        int16_t movement_speed = abs(x_smooth) + abs(y_smooth);
+        
         // --- Coast timeout logic ---
         static int64_t coast_start_time = 0;
         int64_t now = k_uptime_get();
-        bool in_coast = (x_smooth > -PMW3610_COAST_THRESHOLD && x_smooth < PMW3610_COAST_THRESHOLD &&
-                         y_smooth > -PMW3610_COAST_THRESHOLD && y_smooth < PMW3610_COAST_THRESHOLD);
+        bool in_coast = (movement_speed < PMW3610_COAST_THRESHOLD);
+        
         if (in_coast) {
             if (coast_start_time == 0) {
                 coast_start_time = now;
@@ -739,68 +753,109 @@ static int pmw3610_report_data(const struct device *dev) {
             coast_start_time = 0;
         }
         bool coast_timeout = (coast_start_time > 0 && (now - coast_start_time) > PMW3610_COAST_TIMEOUT_MS);
-        // --- Flick detection and hold logic ---
-        static int64_t flick_hold_until[4] = {0, 0, 0, 0};
-        // Detect flicks and set hold timers
-        if (y_smooth > PMW3610_FLICK_THRESHOLD) {
-            flick_hold_until[0] = now + PMW3610_FLICK_HOLD_MS; // UP
-        }
-        if (y_smooth < -PMW3610_FLICK_THRESHOLD) {
-            flick_hold_until[3] = now + PMW3610_FLICK_HOLD_MS; // DOWN
-        }
-        if (x_smooth < -PMW3610_FLICK_THRESHOLD) {
-            flick_hold_until[1] = now + PMW3610_FLICK_HOLD_MS; // LEFT
-        }
-        if (x_smooth > PMW3610_FLICK_THRESHOLD) {
-            flick_hold_until[2] = now + PMW3610_FLICK_HOLD_MS; // RIGHT
-        }
-        // --- Key emulation logic ---
+        
+        // --- Speed-responsive key logic with fluid tiers ---
         if (in_coast || coast_timeout) {
-            // Release all keys
+            // Release all keys and reset speed tiers
             for (int i = 0; i < 4; i++) {
                 should_press[i] = false;
+                speed_tier[i] = 0;
             }
         } else {
-            // Determine which directions should be pressed (normal logic)
-            if (y_smooth > PMW3610_KEY_PRESS_THRESHOLD) {
+            // Calculate dynamic thresholds based on movement speed
+            int16_t dynamic_threshold = PMW3610_BASE_THRESHOLD;
+            if (movement_speed > 100) {
+                dynamic_threshold = PMW3610_BASE_THRESHOLD * 0.6f;  // Lower threshold for fast movement
+            } else if (movement_speed > 60) {
+                dynamic_threshold = PMW3610_BASE_THRESHOLD * 0.8f;  // Medium threshold
+            }
+            
+            // Direction-specific speed calculation and tier assignment
+            int16_t dir_speeds[4] = {
+                abs(y_smooth), // UP speed
+                abs(x_smooth), // LEFT speed  
+                abs(x_smooth), // RIGHT speed
+                abs(y_smooth)  // DOWN speed
+            };
+            
+            // Determine base key presses with dynamic thresholds
+            if (y_smooth > dynamic_threshold) {
                 should_press[0] = true; // UP
             }
-            if (y_smooth < -PMW3610_KEY_PRESS_THRESHOLD) {
-                should_press[3] = true; // DOWN
-            }
-            if (x_smooth < -PMW3610_KEY_PRESS_THRESHOLD) {
+            if (x_smooth < -dynamic_threshold) {
                 should_press[1] = true; // LEFT
             }
-            if (x_smooth > PMW3610_KEY_PRESS_THRESHOLD) {
+            if (x_smooth > dynamic_threshold) {
                 should_press[2] = true; // RIGHT
             }
-            // Release if axis returns to center
-            if (y_smooth < PMW3610_KEY_RELEASE_THRESHOLD && y_smooth > -PMW3610_KEY_RELEASE_THRESHOLD) {
-                should_press[0] = false; // UP
-                should_press[3] = false; // DOWN
+            if (y_smooth < -dynamic_threshold) {
+                should_press[3] = true; // DOWN
             }
-            if (x_smooth < PMW3610_KEY_RELEASE_THRESHOLD && x_smooth > -PMW3610_KEY_RELEASE_THRESHOLD) {
-                should_press[1] = false; // LEFT
-                should_press[2] = false; // RIGHT
+            
+            // Release keys if movement drops below release threshold
+            if (abs(y_smooth) < PMW3610_RELEASE_THRESHOLD) {
+                should_press[0] = should_press[3] = false; // UP, DOWN
+            }
+            if (abs(x_smooth) < PMW3610_RELEASE_THRESHOLD) {
+                should_press[1] = should_press[2] = false; // LEFT, RIGHT
+            }
+            
+            // Update speed tiers for fluid response
+            for (int i = 0; i < 4; i++) {
+                if (should_press[i]) {
+                    // Calculate speed tier (0-3) based on movement speed
+                    int16_t new_tier = 0;
+                    if (dir_speeds[i] > 80) new_tier = 3;      // Very fast
+                    else if (dir_speeds[i] > 50) new_tier = 2; // Fast  
+                    else if (dir_speeds[i] > 30) new_tier = 1; // Medium
+                    
+                    // Smooth tier transitions to avoid jitter
+                    if (new_tier > speed_tier[i]) {
+                        speed_tier[i] = new_tier;
+                    } else if (new_tier < speed_tier[i]) {
+                        speed_tier[i] = MAX(0, speed_tier[i] - 1); // Gradual decrease
+                    }
+                } else {
+                    speed_tier[i] = MAX(0, speed_tier[i] - 1); // Decay when not active
+                }
             }
         }
-        // Override with flick hold: if flick hold timer is active, force key held
+        
+        // --- Speed-responsive key timing ---
         for (int i = 0; i < 4; i++) {
-            if (flick_hold_until[i] > now) {
-                should_press[i] = true;
+            // Calculate repeat interval based on speed tier
+            int64_t repeat_interval = 50; // Base interval (ms)
+            switch (speed_tier[i]) {
+                case 3: repeat_interval = 15; break; // Very fast: 67 Hz
+                case 2: repeat_interval = 25; break; // Fast: 40 Hz  
+                case 1: repeat_interval = 35; break; // Medium: 28 Hz
+                default: repeat_interval = 50; break; // Slow: 20 Hz
             }
-        }
-        for (int i = 0; i < 4; i++) {
+            
+            bool should_send_event = false;
+            
             if (should_press[i] && !pressed[i]) {
-                struct zmk_position_state_changed evt = {
-                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
-                    .position = keys[i],
-                    .state = true,
-                    .timestamp = now
-                };
-                raise_zmk_position_state_changed(evt);
-                pressed[i] = true;
+                // Initial press
+                should_send_event = true;
+                last_key_time[i] = now;
+            } else if (should_press[i] && pressed[i]) {
+                // Continuous press with speed-responsive timing
+                if ((now - last_key_time[i]) >= repeat_interval) {
+                    // Send periodic release/press for fluid repeat
+                    struct zmk_position_state_changed release_evt = {
+                        .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                        .position = keys[i],
+                        .state = false,
+                        .timestamp = now
+                    };
+                    raise_zmk_position_state_changed(release_evt);
+                    
+                    // Immediate re-press for continuous action
+                    should_send_event = true;
+                    last_key_time[i] = now;
+                }
             } else if (!should_press[i] && pressed[i]) {
+                // Release
                 struct zmk_position_state_changed evt = {
                     .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
                     .position = keys[i],
@@ -810,9 +865,20 @@ static int pmw3610_report_data(const struct device *dev) {
                 raise_zmk_position_state_changed(evt);
                 pressed[i] = false;
             }
+            
+            if (should_send_event) {
+                struct zmk_position_state_changed evt = {
+                    .source = ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL,
+                    .position = keys[i],
+                    .state = true,
+                    .timestamp = now
+                };
+                raise_zmk_position_state_changed(evt);
+                pressed[i] = true;
+            }
         }
     }
-    // --- END: Improved Configurable Keybind Emulation with Coast Protection, Timeout, Smoothing, and Flick Hold ---
+    // --- END: Enhanced Speed-Responsive Arrow Key Emulation ---
 
     return err;
 }
